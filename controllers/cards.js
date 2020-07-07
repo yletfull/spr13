@@ -5,7 +5,7 @@ const cards = require(path.join(__dirname, '../models/cards'));
 const getCards = (req, res) => {
   cards.find({})
     .populate('owner')
-    .then((cards) => res.send(cards))
+    .then((cards) => res.status(200).send(cards))
     .catch((err) => res.status(500).send({ message: `${err}` }));
 };
 
@@ -17,14 +17,26 @@ const addCard = (req, res) => {
   cards.create({
     name, link, owner, likes, createdAt,
   })
-    .then((card) => res.send({ card }))
+    .then((card) => res.status(200).send({ card }))
     .catch((err) => res.status(500).send({ message: `${err}` }));
 };
 
 const removeCard = (req, res) => {
-  cards.findByIdAndRemove(req.params.cardId)
-    .then((card) => res.send({ card }))
-    .catch((err) => res.status(500).send({ message: `${err}` }));
+  cards.findById(req.params.cardId)
+    .then((card) => {
+      if (card) {
+        if (card.owner == req.user._id) {
+          cards.findByIdAndRemove(req.params.cardId)
+            .then(res.status(200).send({ card }))
+            .catch(() => res.status(500).send({ message: 'Ошибка сервера' }));
+        } else {
+          res.status(404).send({ message: 'Нет доступа' });
+        }
+      } else {
+        res.status(404).send({ message: `Карточки с id:'${req.params.cardId}' не существует` });
+      }
+    })
+    .catch(() => res.status(500).send({ message: 'Ошибка сервера' }));
 };
 
 const likeCard = (req, res) => {
@@ -33,8 +45,14 @@ const likeCard = (req, res) => {
     { $addToSet: { likes: req.user._id } },
     { new: true },
   )
-    .then(() => res.send({ message: `Liked ${req.params.cardId}` }))
-    .catch((err) => res.status(500).send({ message: `${err}` }));
+    .then((card) => {
+      if (card) {
+        res.status(200).send({ message: `Liked ${req.params.cardId}` });
+      } else {
+        res.status(404).send({ message: `Карточки с id:'${req.params.cardId}' не существует` });
+      }
+    })
+    .catch(() => res.status(500).send({ message: 'Ошибка сервера' }));
 };
 
 const dislikedCard = (req, res) => {
@@ -43,8 +61,8 @@ const dislikedCard = (req, res) => {
     { $pull: { likes: req.user._id } },
     { new: true },
   )
-    .then(() => res.send({ message: `Disliked ${req.params.cardId}` }))
-    .catch((err) => res.status(500).send({ message: `${err}` }));
+    .then(() => res.status(200).send({ message: `Disliked ${req.params.cardId}` }))
+    .catch(() => res.status(404).send({ message: `Карточки с id:'${req.params.cardId}' не существует` }));
 };
 
 module.exports = {
